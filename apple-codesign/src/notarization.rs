@@ -313,12 +313,24 @@ impl Notarizer {
             .region(Region::new("us-west-2"));
 
         if let Ok(proxy_url) = env::var("https_proxy") {
-            warn!("using proxy: {}", proxy_url);
-
             let proxy_uri: Uri = proxy_url
                 .parse()
                 .context("invalid https_proxy URL")
                 .map_err(AppleCodesignError::Anyhow)?;
+
+            // Avoid logging credentials in proxy URL.
+            if proxy_uri.authority().and_then(|a| a.userinfo()).is_some() {
+                let scheme = proxy_uri.scheme_str().unwrap_or("http");
+                let host = proxy_uri.host().unwrap_or("");
+                if let Some(port) = proxy_uri.port_u16() {
+                    warn!("using proxy: {}://{}:{}", scheme, host, port);
+                } else {
+                    warn!("using proxy: {}://{}", scheme, host);
+                }
+            } else {
+                warn!("using proxy: {}", proxy_url);
+            }
+
             let mut proxy = Proxy::new(Intercept::All, proxy_uri.clone());
 
             if let Some(authority) = proxy_uri.authority() {
